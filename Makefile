@@ -11,7 +11,7 @@ run: ## Run the app
 	python3 main.py
 
 test: ## Run tests
-	python3 -m pytest tests/ -v 2>/dev/null || echo "No tests yet"
+	python3 -m pytest tests/ -v
 
 lint: ## Lint with ruff
 	python3 -m ruff check main.py 2>/dev/null || echo "Install ruff: pip install ruff"

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Code Smell Detector</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: #0d1117; color: #c9d1d9; line-height: 1.5;
+        }
+        header {
+            border-bottom: 1px solid #21262d; padding: 16px 24px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        header h1 { font-size: 20px; color: #58a6ff; font-weight: 600; }
+        header .subtitle { color: #8b949e; font-size: 14px; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+        .controls {
+            display: flex; gap: 12px; align-items: center; margin-bottom: 12px;
+        }
+        select {
+            background: #161b22; color: #c9d1d9; border: 1px solid #30363d;
+            border-radius: 6px; padding: 6px 12px; font-size: 14px; cursor: pointer;
+        }
+        select:focus { border-color: #58a6ff; outline: none; }
+        textarea {
+            width: 100%; min-height: 300px; background: #0d1117; color: #c9d1d9;
+            border: 1px solid #30363d; border-radius: 8px; padding: 16px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px; line-height: 1.6; resize: vertical; tab-size: 4;
+        }
+        textarea:focus { border-color: #58a6ff; outline: none; }
+        textarea::placeholder { color: #484f58; }
+
+        .btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 20px; border: 1px solid #30363d; background: #21262d;
+            color: #c9d1d9; border-radius: 6px; font-size: 14px; font-weight: 500;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .btn:hover { background: #30363d; }
+        .btn-primary { background: #238636; border-color: #2ea043; color: #fff; }
+        .btn-primary:hover { background: #2ea043; }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .results-section { display: none; }
+        .results-section.visible { display: block; margin-top: 24px; }
+
+        .summary {
+            display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+        }
+        .summary-card {
+            background: #161b22; border: 1px solid #30363d;
+            border-radius: 8px; padding: 12px 16px; min-width: 120px;
+        }
+        .summary-card .count { font-size: 24px; font-weight: 600; }
+        .summary-card .label {
+            font-size: 12px; color: #8b949e; text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .code-display {
+            background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px; line-height: 1.6;
+        }
+        .code-line {
+            display: flex; align-items: flex-start;
+            border-left: 3px solid transparent;
+            padding: 0 12px 0 0; min-height: 21px;
+        }
+        .code-line:hover { background: rgba(136, 198, 255, 0.04); }
+        .code-line.has-smell { background: rgba(255, 255, 255, 0.02); }
+        .line-num {
+            color: #484f58; text-align: right; min-width: 48px;
+            padding: 0 16px 0 12px; user-select: none; flex-shrink: 0;
+        }
+        .line-content { flex: 1; white-space: pre; overflow-x: visible; }
+        .smell-badges {
+            display: flex; gap: 4px; flex-shrink: 0;
+            margin-left: 12px; align-items: center;
+        }
+        .smell-badge {
+            font-size: 10px; padding: 1px 6px; border-radius: 4px;
+            white-space: nowrap; font-weight: 500; cursor: default;
+        }
+
+        .legend {
+            display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
+            padding: 12px; background: #161b22; border: 1px solid #30363d;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 12px; color: #8b949e;
+        }
+        .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+        .history-section {
+            margin-top: 32px; border-top: 1px solid #21262d; padding-top: 24px;
+        }
+        .history-section h2 { font-size: 16px; color: #c9d1d9; margin-bottom: 12px; }
+        .history-list { display: flex; flex-direction: column; gap: 8px; }
+        .history-item {
+            background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+            padding: 10px 14px; cursor: pointer; transition: border-color 0.15s;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .history-item:hover { border-color: #58a6ff; }
+        .history-meta { font-size: 12px; color: #8b949e; }
+        .history-preview {
+            font-family: monospace; font-size: 12px; color: #8b949e;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            max-width: 400px;
+        }
+        .smell-chip {
+            display: inline-flex; align-items: center; padding: 4px 10px;
+            border-radius: 12px; font-size: 12px; font-weight: 500;
+        }
+
+        .empty-state {
+            text-align: center; padding: 48px 24px; color: #484f58;
+        }
+        .empty-state p { font-size: 14px; }
+
+        .spinner {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid transparent; border-top: 2px solid #fff;
+            border-radius: 50%; animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .container { padding: 16px; }
+            .controls { flex-direction: column; align-items: stretch; }
+            .summary { flex-direction: column; }
+            textarea { min-height: 200px; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>Code Smell Detector</h1>
+            <span class="subtitle">Paste code, detect smells, learn to refactor</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="input-section">
+            <div class="controls">
+                <select id="language">
+                    <option value="python">Python</option>
+                    <option value="javascript">JavaScript</option>
+                    <option value="go">Go</option>
+                </select>
+                <button class="btn btn-primary" id="analyze-btn" onclick="analyze()">
+                    Analyze
+                </button>
+                <span style="color:#484f58; font-size:12px;">Ctrl+Enter to analyze</span>
+            </div>
+            <textarea id="code-input" placeholder="Paste your code here..." spellcheck="false"></textarea>
+        </div>
+
+        <div class="results-section" id="results">
+            <div class="legend" id="legend"></div>
+            <div class="summary" id="summary"></div>
+            <div class="code-display" id="code-display"></div>
+        </div>
+
+        <div class="empty-state" id="empty-state">
+            <p>Paste code above and click <strong>Analyze</strong> to detect code smells.</p>
+            <p style="margin-top:8px">Detects: long methods, deep nesting, magic numbers, dead code, duplicates, god classes.</p>
+        </div>
+
+        <div class="history-section">
+            <h2>Analysis History</h2>
+            <div class="history-list" id="history-list">
+                <div class="history-meta">No analyses yet.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SMELL_TYPES = {{ smell_types | tojson }};
+
+        function escapeHtml(text) {
+            const el = document.createElement('div');
+            el.textContent = text;
+            return el.innerHTML;
+        }
+
+        async function analyze() {
+            const code = document.getElementById('code-input').value.trim();
+            if (!code) return;
+
+            const language = document.getElementById('language').value;
+            const btn = document.getElementById('analyze-btn');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+
+            try {
+                const resp = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, language }),
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                renderResults(code, data.smells);
+                loadHistory();
+            } catch (err) {
+                alert('Analysis failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Analyze';
+            }
+        }
+
+        function renderResults(code, smells) {
+            document.getElementById('results').classList.add('visible');
+            document.getElementById('empty-state').style.display = 'none';
+
+            // Build per-line smell lookup
+            const smellsByLine = {};
+            smells.forEach(s => {
+                for (let ln = s.line; ln <= (s.end_line || s.line); ln++) {
+                    if (!smellsByLine[ln]) smellsByLine[ln] = [];
+                    if (!smellsByLine[ln].some(x => x.type === s.type && x.message === s.message)) {
+                        smellsByLine[ln].push(s);
+                    }
+                }
+            });
+
+            // Legend
+            document.getElementById('legend').innerHTML = Object.entries(SMELL_TYPES).map(([k, v]) =>
+                `<div class="legend-item">
+                    <span class="legend-dot" style="background:${v.color}"></span>
+                    <span>${v.label}</span>
+                </div>`
+            ).join('');
+
+            // Summary
+            const counts = {};
+            smells.forEach(s => { counts[s.type] = (counts[s.type] || 0) + 1; });
+
+            let summaryHtml = `<div class="summary-card">
+                <div class="count">${smells.length}</div>
+                <div class="label">Total Smells</div>
+            </div>`;
+            for (const [type, count] of Object.entries(counts)) {
+                const info = SMELL_TYPES[type];
+                summaryHtml += `<div class="summary-card">
+                    <div class="count" style="color:${info.color}">${count}</div>
+                    <div class="label">${info.label}</div>
+                </div>`;
+            }
+            document.getElementById('summary').innerHTML = summaryHtml;
+
+            // Annotated code
+            const lines = code.split('\n');
+            let html = '';
+
+            lines.forEach((line, idx) => {
+                const lineNum = idx + 1;
+                const lineSmells = smellsByLine[lineNum] || [];
+                const hasSmell = lineSmells.length > 0;
+                const borderColor = hasSmell ? SMELL_TYPES[lineSmells[0].type].color : 'transparent';
+
+                html += `<div class="code-line${hasSmell ? ' has-smell' : ''}" style="border-left-color:${borderColor}" title="${hasSmell ? escapeHtml(lineSmells.map(s => s.message).join('\n')) : ''}">`;
+                html += `<span class="line-num">${lineNum}</span>`;
+                html += `<span class="line-content">${escapeHtml(line) || ' '}</span>`;
+
+                if (hasSmell) {
+                    html += '<span class="smell-badges">';
+                    const seenTypes = new Set();
+                    lineSmells.forEach(s => {
+                        if (!seenTypes.has(s.type)) {
+                            seenTypes.add(s.type);
+                            const info = SMELL_TYPES[s.type];
+                            html += `<span class="smell-badge" style="background:${info.color}20;color:${info.color}" title="${escapeHtml(s.message)}">${info.label}</span>`;
+                        }
+                    });
+                    html += '</span>';
+                }
+                html += '</div>';
+            });
+
+            document.getElementById('code-display').innerHTML = html;
+        }
+
+        async function loadHistory() {
+            try {
+                const resp = await fetch('/history');
+                const items = await resp.json();
+                const el = document.getElementById('history-list');
+
+                if (items.length === 0) {
+                    el.innerHTML = '<div class="history-meta">No analyses yet.</div>';
+                    return;
+                }
+
+                el.innerHTML = items.map(item =>
+                    `<div class="history-item" onclick="loadAnalysis(${item.id})">
+                        <div>
+                            <span class="smell-chip" style="background:${item.smell_count > 0 ? '#f8514920' : '#2ea04320'};color:${item.smell_count > 0 ? '#f85149' : '#2ea043'}">
+                                ${item.smell_count} smell${item.smell_count !== 1 ? 's' : ''}
+                            </span>
+                            <span class="history-meta" style="margin-left:8px">${escapeHtml(item.language)}</span>
+                        </div>
+                        <div>
+                            <span class="history-preview">${escapeHtml(item.preview)}...</span>
+                            <span class="history-meta" style="margin-left:8px">${new Date(item.created_at).toLocaleString()}</span>
+                        </div>
+                    </div>`
+                ).join('');
+            } catch (err) {
+                console.error('Failed to load history:', err);
+            }
+        }
+
+        async function loadAnalysis(id) {
+            try {
+                const resp = await fetch('/history/' + id);
+                const data = await resp.json();
+
+                document.getElementById('code-input').value = data.code;
+                document.getElementById('language').value = data.language;
+                renderResults(data.code, data.results);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (err) {
+                console.error('Failed to load analysis:', err);
+            }
+        }
+
+        // Keyboard shortcuts
+        document.getElementById('code-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                analyze();
+            }
+        });
+
+        loadHistory();
+    </script>
+</body>
+</html>
