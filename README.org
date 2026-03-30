@@ -1,32 +1,25 @@
 #+TITLE: code-smell-detector-web
-#+STARTUP: overview
-
-* Overview
+#+AUTHOR: aygp-dr
 
 Web UI for code smell detection. Built with Flask, deployable on Replit.
 
-* Quick Start
+** Run locally
 
 #+begin_src bash
-make setup
-make run
-# Open http://localhost:8080
+pip install -r requirements.txt
+python main.py
 #+end_src
 
-* Development
-
-| Target | Description |
-|--------+-------------|
-| make setup | Create venv, install deps |
-| make run | Start Flask server |
-| make test | Run pytest |
-| make lint | Run ruff linter |
-| make clean | Clean caches and db |
-
-* Deploy on Replit
+** Deploy on Replit
 
 Fork this repo on Replit — it auto-detects the =.replit= config.
 
-* Status
+** Stack
 
-Scaffold — see CLAUDE.md for implementation plan.
+- Python 3.11+ / Flask
+- SQLite (in =data/=)
+- Vanilla CSS (dark theme)
+
+** Status
+
+Scaffold — see CLAUDE.md for full implementation plan.
